@@ -171,10 +171,6 @@ public class CustomThreadPool implements CustomExecutor {
         private volatile boolean isWorking = false;
 
         public Worker(BlockingQueue<Runnable> queue, Runnable firstTask) {
-            this.queue = queue; // if null, thread will just act directly on firstTask then die or steal if we implemented stealing. But wait!
-            // if queue is null, what will it do?
-            // Actually, if a worker is spawned for a specific task because queues are full, it still needs a queue!
-            // Let's bind it to a random queue.
             if (queue == null) {
                 int index = (int)(Math.random() * queues.length);
                 this.queue = queues[index];
