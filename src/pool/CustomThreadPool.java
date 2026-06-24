@@ -28,7 +28,7 @@ public class CustomThreadPool implements CustomExecutor {
     private volatile boolean isShutdown = false;
     private volatile boolean isShutdownNow = false;
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public CustomThreadPool(int corePoolSize, int maxPoolSize, long keepAliveTime, TimeUnit timeUnit,
                             int queueSize, int minSpareThreads, RejectedExecutionHandler rejectedExecutionHandler) {
         if (corePoolSize <= 0 || maxPoolSize < corePoolSize || keepAliveTime < 0 || queueSize <= 0 || minSpareThreads < 0) {
