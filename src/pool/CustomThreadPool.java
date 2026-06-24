@@ -64,7 +64,7 @@ public class CustomThreadPool implements CustomExecutor {
         int attempts = 0;
         boolean added = false;
         while (attempts < queues.length) {
-            int qIndex = Math.abs(roundRobinCounter.getAndIncrement() % queues.length);
+            int qIndex = (roundRobinCounter.getAndIncrement() & Integer.MAX_VALUE) % queues.length;
             if (queues[qIndex].offer(command)) {
                 System.out.println("[Pool] Task accepted into queue #" + qIndex + " (id " + command.hashCode() + ")");
                 added = true;
@@ -207,7 +207,7 @@ public class CustomThreadPool implements CustomExecutor {
                     try {
                         task = queue.poll(keepAliveTimeNanos, TimeUnit.NANOSECONDS);
                     } catch (InterruptedException e) {
-                        if (isShutdown) break;
+                        if (isShutdown && queue.isEmpty()) break;
                         continue;
                     }
                 }
