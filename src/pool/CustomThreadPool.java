@@ -154,15 +154,7 @@ public class CustomThreadPool implements CustomExecutor {
         return isShutdown;
     }
 
-    private boolean removeWorker(Worker worker) {
-        synchronized (workers) {
-            if (workers.size() > corePoolSize) {
-                workers.remove(worker);
-                return true;
-            }
-            return false;
-        }
-    }
+
 
     private class Worker implements Runnable {
         private final BlockingQueue<Runnable> queue;
@@ -202,56 +194,68 @@ public class CustomThreadPool implements CustomExecutor {
             Runnable task = firstTask;
             firstTask = null;
 
-            while (!isShutdownNow) {
-                if (task == null) {
-                    try {
-                        task = queue.poll(keepAliveTimeNanos, TimeUnit.NANOSECONDS);
-                    } catch (InterruptedException e) {
-                        if (isShutdown && queue.isEmpty()) break;
-                        continue;
-                    }
-                }
-
-                if (task == null) {
-                    // Таймаут по keepAliveTime
-                    if (removeWorker(this)) {
-                        System.out.println("[Worker] " + thread.getName() + " idle timeout, stopping.");
-                        break; // Завершаем работу потока
-                    } else {
-                        continue; // Не можем завершить, так как мы core поток
-                    }
-                }
-
-                if (isShutdownNow) break;
-
-                // Выполнение задачи
-                isWorking = true;
-                activeThreads.incrementAndGet();
-                System.out.println("[Worker] " + thread.getName() + " executes task " + task.hashCode());
-                
-                try {
-                    task.run();
-                } catch (RuntimeException e) {
-                    System.err.println("[Worker] Error executing task: " + e.getMessage());
-                } finally {
-                    activeThreads.decrementAndGet();
-                    isWorking = false;
-                    task = null;
-                }
-                
-                // Если был shutdown, но не shutdownNow, и очереди пустые - выходим
-                if (isShutdown) {
-                    boolean empty = true;
-                    for (BlockingQueue<Runnable> q : queues) {
-                        if (!q.isEmpty()) {
-                            empty = false;
-                            break;
+            try {
+                while (!isShutdownNow) {
+                    if (task == null) {
+                        try {
+                            task = queue.poll(keepAliveTimeNanos, TimeUnit.NANOSECONDS);
+                        } catch (InterruptedException e) {
+                            if (isShutdown && queue.isEmpty()) break;
+                            continue;
                         }
                     }
-                    if (empty) break;
+
+                    if (task == null) {
+                        // Таймаут по keepAliveTime
+                        boolean canTimeout = false;
+                        synchronized (workers) {
+                            if (workers.size() > corePoolSize) {
+                                canTimeout = true;
+                            }
+                        }
+                        if (canTimeout) {
+                            System.out.println("[Worker] " + thread.getName() + " idle timeout, stopping.");
+                            break; // Выходим, в finally удалим себя из списка
+                        } else {
+                            continue; // Не можем завершить, так как мы core поток
+                        }
+                    }
+
+                    if (isShutdownNow) break;
+
+                    // Выполнение задачи
+                    isWorking = true;
+                    activeThreads.incrementAndGet();
+                    System.out.println("[Worker] " + thread.getName() + " executes task " + task.hashCode());
+                    
+                    try {
+                        task.run();
+                    } catch (RuntimeException e) {
+                        System.err.println("[Worker] Error executing task: " + e.getMessage());
+                    } finally {
+                        activeThreads.decrementAndGet();
+                        isWorking = false;
+                        task = null;
+                    }
+                    
+                    // Если был shutdown, но не shutdownNow, и очереди пустые - выходим
+                    if (isShutdown) {
+                        boolean empty = true;
+                        for (BlockingQueue<Runnable> q : queues) {
+                            if (!q.isEmpty()) {
+                                empty = false;
+                                break;
+                            }
+                        }
+                        if (empty) break;
+                    }
                 }
+            } finally {
+                synchronized (workers) {
+                    workers.remove(this);
+                }
+                System.out.println("[Worker] " + thread.getName() + " terminated.");
             }
-            System.out.println("[Worker] " + thread.getName() + " terminated.");
         }
     }
 
