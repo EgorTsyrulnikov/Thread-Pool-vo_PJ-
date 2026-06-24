@@ -21,7 +21,6 @@ public class CustomThreadPool implements CustomExecutor {
     private final ThreadFactory threadFactory;
 
     private final BlockingQueue<Runnable>[] queues;
-    private final AtomicInteger roundRobinCounter = new AtomicInteger(0);
 
     private final List<Worker> workers = new ArrayList<>();
     private final AtomicInteger activeThreads = new AtomicInteger(0);
@@ -60,17 +59,21 @@ public class CustomThreadPool implements CustomExecutor {
 
         ensureCoreAndSpareThreads();
 
-        // Попытка добавить задачу в одну из очередей по принципу Round Robin
-        int attempts = 0;
-        boolean added = false;
-        while (attempts < queues.length) {
-            int qIndex = (roundRobinCounter.getAndIncrement() & Integer.MAX_VALUE) % queues.length;
-            if (queues[qIndex].offer(command)) {
-                System.out.println("[Pool] Task accepted into queue #" + qIndex + " (id " + command.hashCode() + ")");
-                added = true;
-                break;
+        // Попытка добавить задачу в наименее загруженную очередь (Least Loaded)
+        int bestQueueIndex = -1;
+        int minSize = Integer.MAX_VALUE;
+        for (int i = 0; i < queues.length; i++) {
+            int size = queues[i].size();
+            if (size < minSize) {
+                minSize = size;
+                bestQueueIndex = i;
             }
-            attempts++;
+        }
+
+        boolean added = false;
+        if (bestQueueIndex != -1 && queues[bestQueueIndex].offer(command)) {
+            System.out.println("[Pool] Task accepted into queue #" + bestQueueIndex + " (id " + command.hashCode() + ")");
+            added = true;
         }
 
         if (!added) {
